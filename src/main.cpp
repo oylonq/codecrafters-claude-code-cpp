@@ -79,42 +79,44 @@ int main(int argc, char *argv[]) {
 
     messages.push_back(message);
 
-    if (message.contains("tool_calls") && !message["tool_calls"].empty()) {
-      auto &tool_calls = message["tool_calls"][0];
-      std::string func_name = tool_calls["function"]["name"].get<std::string>();
-
-      if (func_name == "Read") {
-        json arguments =
-            json::parse(tool_calls["function"]["arguments"].get<std::string>());
-
-        std::string file_path = arguments["file_path"].get<std::string>();
-
-        std::filesystem::path path(file_path);
-
-        if (!std::filesystem::exists(path)) {
-          throw std::runtime_error("File does not exist: " + file_path);
-        }
-
-        if (!std::filesystem::is_regular_file(path)) {
-          throw std::runtime_error("Path is not a regular file: " + file_path);
-        }
-
-        std::ifstream file(path, std::ios::in | std::ios::binary);
-
-        if (!file) {
-          throw std::runtime_error("Failed to open file: " + file_path);
-        }
-
-        std::string file_contents((std::istreambuf_iterator<char>(file)),
-                                  std::istreambuf_iterator<char>());
-
-        std::cout << file_contents << '\n';
-      }
-    } else {
-
+    if (!message.contains("tool_calls") && message["tool_calls"].empty()) {
       std::cout
           << result["choices"][0]["message"]["content"].get<std::string>();
       break;
+    } else {
+      for (auto &tool_calls : messages["tool_calls"]) {
+        std::string func_name =
+            tool_calls["function"]["name"].get<std::string>();
+
+        if (func_name == "Read") {
+          json arguments = json::parse(
+              tool_calls["function"]["arguments"].get<std::string>());
+
+          std::string file_path = arguments["file_path"].get<std::string>();
+
+          std::filesystem::path path(file_path);
+
+          if (!std::filesystem::exists(path)) {
+            throw std::runtime_error("File does not exist: " + file_path);
+          }
+
+          if (!std::filesystem::is_regular_file(path)) {
+            throw std::runtime_error("Path is not a regular file: " +
+                                     file_path);
+          }
+
+          std::ifstream file(path, std::ios::in | std::ios::binary);
+
+          if (!file) {
+            throw std::runtime_error("Failed to open file: " + file_path);
+          }
+
+          std::string file_contents((std::istreambuf_iterator<char>(file)),
+                                    std::istreambuf_iterator<char>());
+
+          std::cout << file_contents << '\n';
+        }
+      }
     }
   }
 
