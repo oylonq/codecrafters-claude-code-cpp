@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
   while (true) {
     json request_body = {
         {"model", "anthropic/claude-haiku-4.5"},
-        {"messages", messages},
+        {"messages", messages.back()},
         {"tools",
          json::array(
              {{{"type", "function"},
