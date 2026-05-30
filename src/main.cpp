@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
   while (true) {
     json request_body = {
         {"model", "anthropic/claude-haiku-4.5"},
-        {"messages", messages.back()},
+        {"messages", messages},
         {"tools",
          json::array(
              {{{"type", "function"},
@@ -114,8 +114,13 @@ int main(int argc, char *argv[]) {
           std::string file_contents((std::istreambuf_iterator<char>(file)),
                                     std::istreambuf_iterator<char>());
 
-          std::cout << file_contents << '\n';
+          // std::cout << file_contents << '\n';
         }
+
+        messages.push_back(
+            {{"role", "tool"},
+             {"tool_call_id", tool_calls["id"].get<std::string>()},
+             {"content", message["content"].get<std::string>()}});
       }
     }
   }
