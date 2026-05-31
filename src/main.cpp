@@ -24,7 +24,21 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  // Initalize the conversation
   json messages = json::array({{{"role", "user"}, {"content", prompt}}});
+
+  json tools = json::array(
+      {{{"type", "function"},
+        {"function",
+         {{"name", "Read"},
+          {"description", "Read and return the contents of a file "},
+          {"parameters",
+           {{"type", "object"},
+            {"properties",
+             {{"file_path",
+               {{"type", "string"},
+                {"description", "The path to the file to read"}}}}},
+            {"required", json::array({"file_path"})}}}}}}});
 
   const char *api_key_env = std::getenv("OPENROUTER_API_KEY");
   const char *base_url_env = std::getenv("OPENROUTER_BASE_URL");
@@ -38,23 +52,11 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  // Enter the loop
   while (true) {
-    json request_body = {
-        {"model", "anthropic/claude-haiku-4.5"},
-        {"messages", messages},
-        {"tools",
-         json::array(
-             {{{"type", "function"},
-               {"function",
-                {{"name", "Read"},
-                 {"description", "Read and return the contents of a file"},
-                 {"parameters",
-                  {{"type", "object"},
-                   {"properties",
-                    {{"file_path",
-                      {{"type", "string"},
-                       {"description", "The path to the file to read"}}}}},
-                   {"required", json::array({"file_path"})}}}}}}})}};
+    json request_body = {{"model", "anthropic/claude-haiku-4.5"},
+                         {"messages", messages},
+                         {"tools", tools}};
 
     cpr::Response response =
         cpr::Post(cpr::Url{base_url + "/chat/completions"},
@@ -74,17 +76,18 @@ int main(int argc, char *argv[]) {
       return 1;
     }
 
-    // Ectract the tool call
     auto &message = result["choices"][0]["message"];
 
+    // Record the assistant's response
     messages.push_back(message);
 
-    if (!message.contains("tool_calls") && message["tool_calls"].empty()) {
+    // Execute tool calls
+    if (!message.contains("tool_calls") || message["tool_calls"].empty()) {
       std::cout
           << result["choices"][0]["message"]["content"].get<std::string>();
       break;
     } else {
-      for (auto &tool_calls : messages["tool_calls"]) {
+      for (auto &tool_calls : message["tool_calls"]) {
         std::string func_name =
             tool_calls["function"]["name"].get<std::string>();
 
@@ -114,28 +117,21 @@ int main(int argc, char *argv[]) {
           std::string file_contents((std::istreambuf_iterator<char>(file)),
                                     std::istreambuf_iterator<char>());
 
-          // std::cout << file_contents << '\n';
-        }
+          json content = json::parse(file_contents);
 
-        messages.push_back(
-            {{"role", "tool"},
-             {"tool_call_id", tool_calls["id"].get<std::string>()},
-             {"content", message["content"].get<std::string>()}});
+          // std::cout << file_contents << '\n';
+          messages.push_back(
+              {{"role", "tool"},
+               {"tool_call_id", tool_calls["id"].get<std::string>()},
+               {"content", content}});
+        }
       }
     }
   }
 
-  // Parse the function name
-
-  // Parse the arguments
-
-  // Execute the tool
-
-  // You can use print statements as follows for debugging, they'll be
-  // visible when running tests.
+  // You can use print statements as follows for debugging, they'll
+  // be visible when running tests.
   std::cerr << "Logs from your program will appear here!" << std::endl;
-
-  // TODO: Uncomment the line below to pass the first stage
 
   return 0;
 }
