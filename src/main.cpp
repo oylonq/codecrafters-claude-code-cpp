@@ -38,7 +38,21 @@ int main(int argc, char *argv[]) {
              {{"file_path",
                {{"type", "string"},
                 {"description", "The path to the file to read"}}}}},
-            {"required", json::array({"file_path"})}}}}}}});
+            {"required", json::array({"file_path"})}}}}}},
+       {{"type", "function"},
+        {"function",
+         {{"name", "Write"},
+          {"description", "Write content to a file"},
+          {"parameters",
+           {{"type", "object"},
+            {"required", json::array({"file_path", "content"})},
+            {"properties",
+             {{"file_path",
+               {{"type", "string"},
+                {"description", "The path to the file to write to"}}}}},
+            {"content",
+             {{"type", "string"},
+              {"description", "The content to write to the file"}}}}}}}}});
 
   const char *api_key_env = std::getenv("OPENROUTER_API_KEY");
   const char *base_url_env = std::getenv("OPENROUTER_BASE_URL");
@@ -91,10 +105,10 @@ int main(int argc, char *argv[]) {
         std::string func_name =
             tool_calls["function"]["name"].get<std::string>();
 
-        if (func_name == "Read") {
-          json arguments = json::parse(
-              tool_calls["function"]["arguments"].get<std::string>());
+        json arguments =
+            json::parse(tool_calls["function"]["arguments"].get<std::string>());
 
+        if (func_name == "Read") {
           std::string file_path = arguments["file_path"].get<std::string>();
 
           std::filesystem::path path(file_path);
@@ -117,11 +131,32 @@ int main(int argc, char *argv[]) {
           std::string file_contents((std::istreambuf_iterator<char>(file)),
                                     std::istreambuf_iterator<char>());
 
-          // std::cout << file_contents << '\n';
           messages.push_back(
               {{"role", "tool"},
                {"tool_call_id", tool_calls["id"].get<std::string>()},
                {"content", file_contents}});
+        }
+        if (func_name == "Write") {
+          std::string file_path = arguments["file_path"].get<std::string>();
+          std::string content = arguments["content"].get<std::string>();
+
+          // Write the content to the file at the specified path
+          std::ofstream file(file_path);
+
+          if (file.is_open()) {
+            file << content;
+            file.close();
+          } else {
+            std::cerr << "Error: Could not open the file for writing" << '\n';
+            return 1;
+          }
+
+          // Append the result to messages as a tool message (just like with
+          // Read)
+          messages.push_back(
+              {{"role", "tool"},
+               {"tool_call_id", tool_calls["id"].get<std::string>()},
+               {"content", content}});
         }
       }
     }
