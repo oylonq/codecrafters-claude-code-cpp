@@ -117,13 +117,11 @@ int main(int argc, char *argv[]) {
           std::string file_contents((std::istreambuf_iterator<char>(file)),
                                     std::istreambuf_iterator<char>());
 
-          json content = json::parse(file_contents);
-
           // std::cout << file_contents << '\n';
           messages.push_back(
               {{"role", "tool"},
                {"tool_call_id", tool_calls["id"].get<std::string>()},
-               {"content", content}});
+               {"content", file_contents}});
         }
       }
     }
