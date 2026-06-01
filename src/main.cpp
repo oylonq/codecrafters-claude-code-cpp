@@ -11,6 +11,8 @@
 
 using json = nlohmann::json;
 
+std::string execute_shell_command(const std::string &command);
+
 int main(int argc, char *argv[]) {
   if (argc < 3 || std::string(argv[1]) != "-p") {
     std::cerr << "Expected first argument to be '-p'" << std::endl;
@@ -52,7 +54,20 @@ int main(int argc, char *argv[]) {
                 {"description", "The path to the file to write to"}}}}},
             {"content",
              {{"type", "string"},
-              {"description", "The content to write to the file"}}}}}}}}});
+              {"description", "The content to write to the file"}}}}}}}},
+       {{"type", "function"},
+        {"function",
+         {{"name", "Bash"},
+          {"description", "Execute a shell command"},
+          {"parameters",
+           {
+               {"type", "object"},
+               {"required", json::array({"command"})},
+               {"properties",
+                {{"command",
+                  {{"type", "string"},
+                   {"description", "The command to execute"}}}}},
+           }}}}}});
 
   const char *api_key_env = std::getenv("OPENROUTER_API_KEY");
   const char *base_url_env = std::getenv("OPENROUTER_BASE_URL");
@@ -100,6 +115,7 @@ int main(int argc, char *argv[]) {
       std::cout
           << result["choices"][0]["message"]["content"].get<std::string>();
       break;
+
     } else {
       for (auto &tool_calls : message["tool_calls"]) {
         std::string func_name =
@@ -135,8 +151,7 @@ int main(int argc, char *argv[]) {
               {{"role", "tool"},
                {"tool_call_id", tool_calls["id"].get<std::string>()},
                {"content", file_contents}});
-        }
-        if (func_name == "Write") {
+        } else if (func_name == "Write") {
           std::string file_path = arguments["file_path"].get<std::string>();
           std::string content = arguments["content"].get<std::string>();
 
@@ -157,6 +172,15 @@ int main(int argc, char *argv[]) {
               {{"role", "tool"},
                {"tool_call_id", tool_calls["id"].get<std::string>()},
                {"content", content}});
+
+        } else if (func_name == "Bash") {
+          std::string shell_command = arguments["command"].get<std::string>();
+          std::string cmd_output = execute_shell_command(shell_command);
+
+          messages.push_back(
+              {{"role", "tool"},
+               {"tool_call_id", tool_calls["id"].get<std::string>()},
+               {"content", cmd_output}});
         }
       }
     }
@@ -167,4 +191,24 @@ int main(int argc, char *argv[]) {
   std::cerr << "Logs from your program will appear here!" << std::endl;
 
   return 0;
+}
+
+std::string execute_shell_command(const std::string &cmd) {
+  char buffer[128];
+  std::string result = "";
+
+  // 打开管道，"r" 表示读取命令的标准输出
+  std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"),
+                                                pclose);
+
+  if (!pipe) {
+    throw std::runtime_error("popen() 失败！");
+  }
+
+  // 循环读取数据到 string 中
+  while (fgets(buffer, sizeof(buffer), pipe.get()) != nullptr) {
+    result += buffer;
+  }
+
+  return result;
 }
